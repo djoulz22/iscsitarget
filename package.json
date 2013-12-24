@@ -1,0 +1,29 @@
+{
+  "name": "iscsitarget",
+  "version": "0.0.1",
+  "description": "iscsitarget Interface",
+  "main": "index.js",
+  "scripts": {
+    "test": "no tests"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/djoulz22/iscsitarget.git"
+  },
+  "keywords": [
+    "iscsitarget",
+    "iscsi"
+  ],
+  "author": {
+  	"name": "Julien CHENAVAS",
+	"mail": "jchenavas@gmail.com"
+	},
+  "license": "BSD-2-Clause",
+  "bugs": {
+    "url": "https://github.com/djoulz22/iscsitarget/issues"
+  },
+  "dependencies": {
+   "underscore": "*",
+   "json-file-db" : "*"
+   }
+}
