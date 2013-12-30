@@ -49,3 +49,4 @@ iscsitarget.events.OnAfterOpen = function(){
 
 iscsitarget.Open();
 ```
+[![Bitdeli Badge](https://d2weczhvl823v0.cloudfront.net/djoulz22/iscsitarget/trend.png)](https://bitdeli.com/free "Bitdeli Badge")
