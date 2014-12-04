@@ -9,19 +9,33 @@ function iSCSITarget(showlogs){
 	this.showlogs = (showlogs != null) ? showlogs : false;
 	this.nodes = {
 		targets: {},
+		sessions: {},
 		service: {}
 	};
+
 	this.only_last_events = false;
+	this.nodesCount = Object.keys(this.nodes).length;
+	this.resultCount = 0;
 	this.events = new Events();
 		
 	InternalEvents = new Events();
 		
 	var me = this;
-	InternalEvents.OnBeforeOpen = function(){		
-		if (me.events.OnBeforeOpen) me.events.OnBeforeOpen();
+	InternalEvents.OnBeforeOpen = function(cmd){
+		if (me.showlogs) console.log("InternalEvents.OnBeforeOpen(" + cmd + ")");
+		
+		if (me.events.OnBeforeOpen) me.events.OnBeforeOpen(cmd);
 	};
-	InternalEvents.OnAfterOpen = function(){		
-		if (me.events.OnAfterOpen) me.events.OnAfterOpen();	
+	InternalEvents.OnAfterOpen = function(cmd){		
+		// if (me.events.OnAfterOpen) me.events.OnAfterOpen();	
+		if(me.only_last_events) me.resultCount++;
+		
+		if (me.showlogs) console.log("InternalEvents.OnAfterOpen(" + JSON.stringify({"cmd": cmd, "resCount":me.resultCount, "nodesCnt":me.nodesCount}) + ")");
+		
+		if (!me.only_last_events || (me.resultCount == me.nodesCount)){
+			if(me.only_last_events) me.only_last_events = false;
+			if (me.events.OnAfterOpen) me.events.OnAfterOpen(cmd);	
+		}
 	};
 	InternalEvents.OnBeforeParseData = function(datas){
 		if (me.events.OnBeforeParseData) me.events.OnBeforeParseData(datas);
@@ -33,8 +47,11 @@ function iSCSITarget(showlogs){
 
 iSCSITarget.prototype = {
 	Open: function(){
-		this.GetTargets();
-		this.GetService();	
+		this.resultCount = 0;
+		this.only_last_events = true;
+		for(var Command in this.nodes){
+			this["Get" + Command.charAt(0).toUpperCase() + Command.slice(1)]();
+		}
 	},
 	CallCmd: function(cmd,result){		
 		var me = this;
@@ -52,20 +69,20 @@ iSCSITarget.prototype = {
 		        		me.nodes[result] = {"error": error, type: "error"};
 		        	}
 		        	else if(stderr){
-					if (me.showlogs){
-			        		console.log("EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE");
-			        		console.log('stderr: ' + stderr);	
-			        		console.log("EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE");
-					}
-		                        me.nodes[result] = {"error": stderr, type: "stderr"};
+							if (me.showlogs){
+				        		console.log("EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE");
+				        		console.log('stderr: ' + stderr);	
+				        		console.log("EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE");
+							}
+                        	me.nodes[result] = {"error": stderr, type: "stderr"};
 		        	}
 		        	else{
-					me.nodes[result] = me.parseData(stdout,result);
-					
-					if (me.showlogs) console.log(JSON.stringify(me.nodes.targets,null,4));
+						me.nodes[result] = me.parseData(stdout,result);
+						
+						if (me.showlogs) console.log(JSON.stringify(me.nodes.targets,null,4));
 		        	}
 				
-				InternalEvents.OnAfterOpen(cmd);
+					InternalEvents.OnAfterOpen(cmd);
 		        }); 
 		} catch (err) {
 			me.nodes.targets = {"error": err, type: "exception"};
@@ -76,6 +93,10 @@ iSCSITarget.prototype = {
 	GetTargets: function(){
 		var cmd = "cat /etc/iet/ietd.conf | grep -v \"^\s*#.*\" | grep -v \"^$\"";
 		this.CallCmd(cmd,"targets");
+	},
+	GetSessions: function(){
+		var cmd = "cat /proc/net/iet/session | sed -e 's/^[[:space:]]*//'";
+		this.CallCmd(cmd,"sessions");
 	},
 	GetService: function(){
 		var cmd = "service iscsitarget status";	
@@ -130,6 +151,47 @@ iSCSITarget.prototype = {
 		
 		return retval;	
 	},
+	parseSessions: function(iSCSISession) {
+		var retval = [];
+		var r;
+
+		_.each(iSCSISession.split("\n"),function(line,id){
+			var spline = line.split(" ");
+
+			if (line.indexOf('tid')==0) {
+				if (id>0)
+					retval.push(r);
+
+				r = {
+					sessions: []
+				};
+				
+				r.Id = spline[0].replace(/[^\d]/g,'');
+				r.Target = spline[1].substring(5);
+			}
+			else if(line.indexOf('sid')==0) {
+				r.sessions.push({
+					Id: spline[0].replace(/[^\d]/g,''),
+					initiator: spline[1].substring(10),
+					infos: []
+				});
+			}
+			else if (line.indexOf('cid')==0) {
+				r.sessions[Object.keys(r.sessions).length-1].infos.push({
+					Id: spline[0].replace(/[^\d]/g,''),
+					ip: spline[1].substring(3),
+					state: spline[2].substring(6),
+					hd: spline[3].substring(3),
+					dd: spline[4].substring(3)
+				});
+			}
+		});
+
+		if (iSCSISession.split("\n")[iSCSISession.split("\n").length-1].indexOf('tid')<0)
+			retval.push(r);
+
+		return retval;
+	},
 	parseService: function(piSCSIService){
 		InternalEvents.OnBeforeParseData(piSCSIService);
 		var retval = piSCSIService.replace(/^[\*\s]*/,"",'gi').split("\n").slice(0,1);			
@@ -142,6 +204,8 @@ iSCSITarget.prototype = {
 		
 		switch(result){
 			case "targets" : return this.parseTargets(piSCSI);
+			break;
+			case "sessions" : return this.parseSessions(piSCSI);
 			break;
 			case "service" : return this.parseService(piSCSI);
 			break;
