@@ -2,6 +2,10 @@
 
 Getting iscsitarget to JSON.
 
+[![NPM](https://nodei.co/npm/iscsitarget.png?downloads=true&downloadRank=true&stars=true)](https://nodei.co/npm/iscsitarget/)
+
+[![NPM](https://nodei.co/npm-dl/iscsitarget.png)](https://nodei.co/npm/iscsitarget/)
+
 ## License
 
 ```
